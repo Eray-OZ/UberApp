@@ -64,11 +64,17 @@ fun DriverMapScreen(
                         val points = PolyUtil.decode(ride.polylinePoints)
                         points.forEach { builder.include(it); hasPoints = true }
                     }
-                } else if (pendingRides.isNotEmpty() && pagerState.currentPage < pendingRides.size) {
-                    // Previewing a request
-                    val ride = pendingRides[pagerState.currentPage]
-                    val points = PolyUtil.decode(ride.polylinePoints)
-                    points.forEach { builder.include(it); hasPoints = true }
+                } else if (pendingRides.isNotEmpty()) {
+                    // Phase: Previewing requests - Show ALL pending pickups
+                    pendingRides.forEach { ride ->
+                        builder.include(LatLng(ride.pickupLatitude, ride.pickupLongitude))
+                        hasPoints = true
+                    }
+                    // Also include the destination of the CURRENTLY selected one
+                    if (pagerState.currentPage < pendingRides.size) {
+                        val selectedRide = pendingRides[pagerState.currentPage]
+                        PolyUtil.decode(selectedRide.polylinePoints).forEach { builder.include(it) }
+                    }
                 } else {
                     // Just tracking
                     uiState.currentLocation?.let {
@@ -115,21 +121,38 @@ fun DriverMapScreen(
                         }
                     }
 
-                    // Preview for pending rides
+                    // Previews for ALL pending rides
                     if (activeRide == null && pendingRides.isNotEmpty() && uiState.isTracking) {
-                        val ride = pendingRides[pagerState.currentPage]
-                        val pickup = LatLng(ride.pickupLatitude, ride.pickupLongitude)
-                        val dest = LatLng(ride.destinationLatitude, ride.destinationLongitude)
-                        val points = PolyUtil.decode(ride.polylinePoints)
+                        pendingRides.forEachIndexed { index, ride ->
+                            val isSelected = index == pagerState.currentPage
+                            val pickup = LatLng(ride.pickupLatitude, ride.pickupLongitude)
+                            
+                            // Show pickup for every ride
+                            Marker(
+                                state = MarkerState(position = pickup),
+                                title = if (isSelected) "Seçili Yolcu" else "Yolcu Talebi",
+                                icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE),
+                                alpha = if (isSelected) 1.0f else 0.4f
+                            )
 
-                        Marker(
-                            state = MarkerState(position = pickup),
-                            title = "Alınacak Yolcu",
-                            icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE),
-                            alpha = 0.8f
-                        )
-                        Marker(state = MarkerState(position = dest), title = "Hedef", alpha = 0.6f)
-                        Polyline(points = points, color = Color.Gray.copy(alpha = 0.5f), width = 10f)
+                            // Show route and destination ONLY for the selected ride
+                            if (isSelected) {
+                                val dest = LatLng(ride.destinationLatitude, ride.destinationLongitude)
+                                val points = PolyUtil.decode(ride.polylinePoints)
+                                
+                                Marker(
+                                    state = MarkerState(position = dest), 
+                                    title = "Hedef", 
+                                    alpha = 0.8f,
+                                    icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN)
+                                )
+                                Polyline(
+                                    points = points, 
+                                    color = Color.Blue.copy(alpha = 0.4f), 
+                                    width = 10f
+                                )
+                            }
+                        }
                     }
 
                     // Driver's own marker
@@ -155,16 +178,7 @@ fun DriverMapScreen(
                     }
 
                     Button(
-                        onClick = {
-                            val isOnline = !uiState.isTracking
-                            viewModel.setTracking(isOnline)
-                            val intent = Intent(context, LocationService::class.java).apply {
-                                if (isOnline) putExtra("driverId", viewModel.driverId)
-                                else action = LocationService.ACTION_STOP
-                            }
-                            if (isOnline) context.startForegroundService(intent)
-                            else context.startService(intent)
-                        },
+                        onClick = { viewModel.toggleTracking(context) },
                         colors = ButtonDefaults.buttonColors(containerColor = if (uiState.isTracking) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
                     ) {
                         Text(if (uiState.isTracking) "Go Offline" else "Go Online")

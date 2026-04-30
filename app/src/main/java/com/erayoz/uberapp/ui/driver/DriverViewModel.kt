@@ -139,15 +139,21 @@ class DriverViewModel @Inject constructor(
         return results[0]
     }
 
+    private var pendingRidesJob: Job? = null
+
     private fun observePendingRides() {
-        viewModelScope.launch {
+        pendingRidesJob?.cancel()
+        pendingRidesJob = viewModelScope.launch {
             rideRepository.observePendingRides().collect { rides ->
-                // Sadece aktif bir sürüşü yoksa bekleyenleri göster
-                if (_activeRide.value == null) {
-                    _pendingRides.value = rides
-                }
+                _pendingRides.value = rides
             }
         }
+    }
+
+    private fun stopObservingPendingRides() {
+        pendingRidesJob?.cancel()
+        pendingRidesJob = null
+        _pendingRides.value = emptyList()
     }
 
     fun acceptRide(ride: RideRequest) {
@@ -155,7 +161,6 @@ class DriverViewModel @Inject constructor(
         viewModelScope.launch {
             rideRepository.acceptRide(ride.id, uid).onSuccess {
                 _activeRide.value = ride.copy(status = "accepted", driverId = uid)
-                _pendingRides.value = emptyList()
                 observeActiveRide(ride.id)
             }
         }
@@ -196,12 +201,35 @@ class DriverViewModel @Inject constructor(
     fun updateRideStatus(status: String) {
         val ride = _activeRide.value ?: return
         viewModelScope.launch {
-            rideRepository.updateRideStatus(ride.id, status)
+            rideRepository.updateRideStatus(ride.id, status).onSuccess {
+                if (status == "completed") {
+                    // Refresh pending rides immediately after completion
+                    if (_uiState.value.isTracking) {
+                        observePendingRides()
+                    }
+                }
+            }
         }
     }
 
-    fun setTracking(tracking: Boolean) {
-        _uiState.update { it.copy(isTracking = tracking) }
+    fun toggleTracking(context: android.content.Context) {
+        val uid = driverId ?: return
+        val isNowTracking = !_uiState.value.isTracking
+        
+        _uiState.update { it.copy(isTracking = isNowTracking) }
+        
+        val intent = android.content.Intent(context, com.erayoz.uberapp.service.LocationService::class.java).apply {
+            if (isNowTracking) putExtra("driverId", uid)
+            else action = com.erayoz.uberapp.service.LocationService.ACTION_STOP
+        }
+
+        if (isNowTracking) {
+            context.startForegroundService(intent)
+            observePendingRides()
+        } else {
+            context.startService(intent)
+            stopObservingPendingRides()
+        }
     }
 
     fun signOut() {

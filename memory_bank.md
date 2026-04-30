@@ -44,13 +44,22 @@
   - Added "Go Online/Offline" toggle for drivers with foreground service start/stop logic.
   - Verified build with `./gradlew assembleDebug`.
 
-### Phase 4: Routing / Pathfinder (NOT STARTED)
-- Google Directions API integration.
-- Destination search (Place Autocomplete).
-- Polyline rendering on the map.
-- Price/Time estimation.
+### Phase 4: Routing / Pathfinder -- COMPLETED
+- **Status:** Implemented. Passengers can search for destinations, see routes/pricing, and create ride requests.
+- **What was done:**
+  - Added Retrofit, OkHttp, and Google Places SDK dependencies.
+  - Implemented `DirectionsRepository` for Google Directions API.
+  - Implemented `PlacesRepository` for Google Places Autocomplete.
+  - Updated `PassengerViewModel` to handle search, route calculation (using PolyUtil), and price estimation.
+  - Updated `PassengerMapScreen` with a functional Search Bar, destination markers, and blue polyline rendering.
+  - Implemented `RideRepository` with Firestore to save `RideRequest` documents.
+  - Added "Request Uber" button and ride status (pending) UI overlay.
 
 ### Phase 5: The Match (NOT STARTED)
+- Driver-side listening for pending ride requests.
+- Ride acceptance flow (update Firestore status and assign driverId).
+- Real-time interaction: Driver sees passenger route, Passenger sees driver's approaching location.
+- Ride lifecycle: accepted -> ongoing -> completed.
 
 ---
 

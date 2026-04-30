@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -41,6 +42,22 @@ class DriverViewModel @Inject constructor(
     init {
         observeOwnLocation()
         observePendingRides()
+        checkForActiveRide()
+    }
+
+    private var activeRideJob: Job? = null
+
+    private fun checkForActiveRide() {
+        val uid = driverId ?: return
+        activeRideJob?.cancel()
+        activeRideJob = viewModelScope.launch {
+            rideRepository.observeActiveRideForDriver(uid).collect { ride ->
+                ride?.let {
+                    _activeRide.value = it
+                    observeActiveRide(it.id)
+                }
+            }
+        }
     }
 
     private fun observeOwnLocation() {
@@ -79,7 +96,8 @@ class DriverViewModel @Inject constructor(
     }
 
     private fun observeActiveRide(rideId: String) {
-        viewModelScope.launch {
+        activeRideJob?.cancel()
+        activeRideJob = viewModelScope.launch {
             rideRepository.observeRideRequest(rideId).collect { ride ->
                 _activeRide.value = ride
                 if (ride == null || ride.status == "completed" || ride.status == "cancelled") {

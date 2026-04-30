@@ -43,17 +43,54 @@ fun PassengerMapScreen(
                 viewModel.fetchCurrentLocation()
             }
 
-            // Camera update for current location or route
-            LaunchedEffect(uiState.currentLocation, uiState.polylinePoints) {
-                if (uiState.polylinePoints.isNotEmpty()) {
-                    val builder = LatLngBounds.Builder()
-                    uiState.polylinePoints.forEach { builder.include(it) }
-                    val bounds = builder.build()
-                    cameraPositionState.animate(CameraUpdateFactory.newLatLngBounds(bounds, 100))
-                } else {
-                    uiState.currentLocation?.let {
-                        cameraPositionState.animate(CameraUpdateFactory.newLatLngZoom(it, 15f))
+            // Camera update based on ride state
+            LaunchedEffect(uiState.rideStatus, uiState.currentLocation, uiState.driverLocation, uiState.destinationLocation) {
+                val builder = LatLngBounds.Builder()
+                val points = mutableListOf<LatLng>()
+
+                fun addIfValid(latLng: LatLng?) {
+                    if (latLng != null && latLng.latitude != 0.0 && latLng.longitude != 0.0) {
+                        points.add(latLng)
+                        builder.include(latLng)
                     }
+                }
+
+                when (uiState.rideStatus) {
+                    "pending" -> {
+                        uiState.currentLocation?.let { 
+                            if (it.latitude != 0.0) {
+                                cameraPositionState.animate(CameraUpdateFactory.newLatLngZoom(it, 15f))
+                                return@LaunchedEffect
+                            }
+                        }
+                    }
+                    "accepted" -> {
+                        addIfValid(uiState.currentLocation)
+                        addIfValid(uiState.driverLocation)
+                    }
+                    "ongoing" -> {
+                        addIfValid(uiState.driverLocation)
+                        addIfValid(uiState.destinationLocation)
+                    }
+                    else -> {
+                        if (uiState.polylinePoints.isNotEmpty()) {
+                            uiState.polylinePoints.forEach { addIfValid(it) }
+                        } else {
+                            uiState.currentLocation?.let { 
+                                if (it.latitude != 0.0) {
+                                    cameraPositionState.animate(CameraUpdateFactory.newLatLngZoom(it, 15f))
+                                    return@LaunchedEffect
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (points.size >= 2) {
+                    val bounds = builder.build()
+                    cameraPositionState.animate(CameraUpdateFactory.newLatLngBounds(bounds, 150))
+                } else if (points.size == 1) {
+                    cameraPositionState.animate(CameraUpdateFactory.newLatLngZoom(points[0], 15f))
                 }
             }
 
@@ -239,9 +276,17 @@ fun PassengerMapScreen(
                             }
                             
                             if (status == "accepted" || status == "ongoing") {
+                                if (uiState.driverDistance.isNotEmpty()) {
+                                    Text(
+                                        text = uiState.driverDistance,
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
                                 Text(
                                     "Estimated arrival: ${uiState.estimatedDuration}",
-                                    modifier = Modifier.padding(top = 8.dp),
+                                    modifier = Modifier.padding(top = 4.dp),
                                     style = MaterialTheme.typography.bodySmall
                                 )
                             }

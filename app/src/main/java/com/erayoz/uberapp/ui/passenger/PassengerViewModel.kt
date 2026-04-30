@@ -15,6 +15,7 @@ import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.tasks.CancellationTokenSource
 import com.google.android.libraries.places.api.model.AutocompletePrediction
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
@@ -34,7 +35,8 @@ data class PassengerMapUiState(
     val rideStatus: String? = null,
     val driverId: String? = null,
     val driverLocation: LatLng? = null,
-    val destinationAddress: String = ""
+    val destinationAddress: String = "",
+    val driverDistance: String = ""
 )
 
 @HiltViewModel
@@ -52,6 +54,28 @@ class PassengerViewModel @Inject constructor(
 
     init {
         placesRepository.createNewSession()
+        checkForActiveRide()
+    }
+
+    private fun checkForActiveRide() {
+        val userId = authRepository.getCurrentUserId() ?: return
+        viewModelScope.launch {
+            rideRepository.observeActiveRideForPassenger(userId).collect { ride ->
+                ride?.let {
+                    _uiState.update { state -> state.copy(
+                        rideId = it.id,
+                        rideStatus = it.status,
+                        driverId = it.driverId,
+                        destinationAddress = it.destinationAddress,
+                        estimatedDistance = it.distanceText,
+                        estimatedDuration = it.durationText,
+                        polylinePoints = com.google.maps.android.PolyUtil.decode(it.polylinePoints),
+                        destinationLocation = LatLng(it.destinationLatitude, it.destinationLongitude)
+                    ) }
+                    observeRide(it.id)
+                }
+            }
+        }
     }
 
     @SuppressLint("MissingPermission")
@@ -150,8 +174,12 @@ class PassengerViewModel @Inject constructor(
         }
     }
 
+    private var rideObservationJob: Job? = null
+    private var driverLocationJob: Job? = null
+
     private fun observeRide(id: String) {
-        viewModelScope.launch {
+        rideObservationJob?.cancel()
+        rideObservationJob = viewModelScope.launch {
             rideRepository.observeRideRequest(id).collect { ride ->
                 _uiState.update { it.copy(
                     rideStatus = ride?.status,
@@ -159,14 +187,21 @@ class PassengerViewModel @Inject constructor(
                 ) }
                 
                 if (ride?.driverId != null && (ride.status == "accepted" || ride.status == "ongoing")) {
-                    observeDriverLocation(ride.driverId)
+                    // Only start observing if not already observing THIS driver
+                    if (driverLocationJob == null || _uiState.value.driverId != ride.driverId) {
+                        observeDriverLocation(ride.driverId)
+                    }
+                } else {
+                    driverLocationJob?.cancel()
+                    driverLocationJob = null
+                    _uiState.update { it.copy(driverLocation = null, driverDistance = "") }
                 }
 
                 if (ride == null || ride.status == "completed" || ride.status == "cancelled") {
-                    // Reset UI after completion
                     if (ride?.status == "completed") {
                         clearRoute()
-                        _uiState.update { it.copy(rideId = null, rideStatus = null, driverId = null, driverLocation = null) }
+                        _uiState.update { it.copy(rideId = null, rideStatus = null, driverId = null, driverLocation = null, driverDistance = "") }
+                        rideObservationJob?.cancel()
                     }
                 }
             }
@@ -174,10 +209,27 @@ class PassengerViewModel @Inject constructor(
     }
 
     private fun observeDriverLocation(driverId: String) {
-        viewModelScope.launch {
+        driverLocationJob?.cancel()
+        driverLocationJob = viewModelScope.launch {
             locationRepository.observeDriverLocation(driverId).collect { driverLoc ->
                 driverLoc?.let { loc ->
-                    _uiState.update { it.copy(driverLocation = LatLng(loc.latitude, loc.longitude)) }
+                    val driverLatLng = LatLng(loc.latitude, loc.longitude)
+                    val passengerLoc = _uiState.value.currentLocation
+                    val distanceText = if (passengerLoc != null) {
+                        val results = FloatArray(1)
+                        android.location.Location.distanceBetween(
+                            passengerLoc.latitude, passengerLoc.longitude,
+                            loc.latitude, loc.longitude,
+                            results
+                        )
+                        val distanceInKm = results[0] / 1000.0
+                        "%.1f km away".format(distanceInKm)
+                    } else ""
+
+                    _uiState.update { it.copy(
+                        driverLocation = driverLatLng,
+                        driverDistance = distanceText
+                    ) }
                 }
             }
         }

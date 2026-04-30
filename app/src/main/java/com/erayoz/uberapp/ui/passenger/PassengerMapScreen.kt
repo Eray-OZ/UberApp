@@ -32,6 +32,7 @@ fun PassengerMapScreen(
     viewModel: PassengerViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     LocationPermissionHelper(
         onPermissionGranted = {
@@ -120,12 +121,16 @@ fun PassengerMapScreen(
                     properties = MapProperties(isMyLocationEnabled = true),
                     uiSettings = MapUiSettings(myLocationButtonEnabled = true)
                 ) {
-                    // Pickup Marker
+                    val personIcon = remember(context) { com.erayoz.uberapp.util.BitmapUtils.bitmapDescriptorFromVector(context, com.erayoz.uberapp.R.drawable.ic_person) }
+                    val carIcon = remember(context) { com.erayoz.uberapp.util.BitmapUtils.bitmapDescriptorFromVector(context, com.erayoz.uberapp.R.drawable.ic_car) }
+                    val destIcon = remember(context) { com.erayoz.uberapp.util.BitmapUtils.bitmapDescriptorFromVector(context, com.erayoz.uberapp.R.drawable.ic_destination_pin) }
+
+                    // Pickup Marker (The Passenger)
                     uiState.currentLocation?.let {
                         Marker(
                             state = MarkerState(position = it),
-                            title = "Başlangıç Noktası (Siz)",
-                            icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE)
+                            title = "You (Passenger)",
+                            icon = personIcon
                         )
                     }
 
@@ -138,8 +143,8 @@ fun PassengerMapScreen(
                         uiState.destinationLocation?.let {
                             Marker(
                                 state = MarkerState(position = it),
-                                title = "Varış Noktası",
-                                icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN)
+                                title = "Destination",
+                                icon = destIcon
                             )
                         }
                     }
@@ -148,8 +153,8 @@ fun PassengerMapScreen(
                     uiState.driverLocation?.let {
                         Marker(
                             state = MarkerState(position = it),
-                            title = "Sürücü (Yolda)",
-                            icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_YELLOW)
+                            title = "Your Driver (En Route)",
+                            icon = carIcon
                         )
                     }
                 }

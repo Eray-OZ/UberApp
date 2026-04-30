@@ -95,6 +95,10 @@ fun DriverMapScreen(
                     properties = MapProperties(isMyLocationEnabled = true),
                     uiSettings = MapUiSettings(myLocationButtonEnabled = true)
                 ) {
+                    val personIcon = remember(context) { com.erayoz.uberapp.util.BitmapUtils.bitmapDescriptorFromVector(context, com.erayoz.uberapp.R.drawable.ic_person) }
+                    val carIcon = remember(context) { com.erayoz.uberapp.util.BitmapUtils.bitmapDescriptorFromVector(context, com.erayoz.uberapp.R.drawable.ic_car) }
+                    val destIcon = remember(context) { com.erayoz.uberapp.util.BitmapUtils.bitmapDescriptorFromVector(context, com.erayoz.uberapp.R.drawable.ic_destination_pin) }
+
                     // Active Ride markers and routes
                     activeRide?.let { ride ->
                         if (ride.status == "accepted") {
@@ -102,8 +106,8 @@ fun DriverMapScreen(
                             val pickup = LatLng(ride.pickupLatitude, ride.pickupLongitude)
                             Marker(
                                 state = MarkerState(position = pickup),
-                                title = "Yolcu Bekliyor",
-                                icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE)
+                                title = "Passenger (Pickup)",
+                                icon = personIcon
                             )
                             if (uiState.routeToPickup.isNotEmpty()) {
                                 Polyline(points = uiState.routeToPickup, color = Color.Magenta, width = 12f)
@@ -114,8 +118,8 @@ fun DriverMapScreen(
                             val points = PolyUtil.decode(ride.polylinePoints)
                             Marker(
                                 state = MarkerState(position = dest),
-                                title = "Varış Noktası",
-                                icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN)
+                                title = "Destination",
+                                icon = destIcon
                             )
                             Polyline(points = points, color = Color.Blue, width = 12f)
                         }
@@ -130,8 +134,8 @@ fun DriverMapScreen(
                             // Show pickup for every ride
                             Marker(
                                 state = MarkerState(position = pickup),
-                                title = if (isSelected) "Seçili Yolcu" else "Yolcu Talebi",
-                                icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE),
+                                title = if (isSelected) "Selected Request" else "Ride Request",
+                                icon = personIcon,
                                 alpha = if (isSelected) 1.0f else 0.4f
                             )
 
@@ -142,9 +146,9 @@ fun DriverMapScreen(
                                 
                                 Marker(
                                     state = MarkerState(position = dest), 
-                                    title = "Hedef", 
+                                    title = "Destination", 
                                     alpha = 0.8f,
-                                    icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN)
+                                    icon = destIcon
                                 )
                                 Polyline(
                                     points = points, 
@@ -159,8 +163,8 @@ fun DriverMapScreen(
                     uiState.currentLocation?.let {
                         Marker(
                             state = MarkerState(position = it),
-                            title = "Siz",
-                            icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_YELLOW)
+                            title = "You (Driver)",
+                            icon = carIcon
                         )
                     }
                 }
@@ -230,16 +234,16 @@ fun DriverMapScreen(
                         shape = RoundedCornerShape(16.dp)
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
-                            Text(if (ride.status == "accepted") "Sizi Bekleyen Yolcu" else "Yolculuk Başladı", fontWeight = FontWeight.Bold)
-                            if (ride.status == "ongoing") Text("Hedef: ${ride.destinationAddress}")
+                            Text(if (ride.status == "accepted") "Passenger Waiting" else "Trip Ongoing", fontWeight = FontWeight.Bold)
+                            if (ride.status == "ongoing") Text("To: ${ride.destinationAddress}")
                             
                             if (uiState.activeDistance.isNotEmpty()) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                                     horizontalArrangement = Arrangement.spacedBy(16.dp)
                                 ) {
-                                    Text("Mesafe: ${uiState.activeDistance}", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
-                                    Text("Süre: ${uiState.activeDuration}", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+                                    Text("Distance: ${uiState.activeDistance}", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+                                    Text("Duration: ${uiState.activeDuration}", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
                                 }
                             }
 
@@ -249,12 +253,12 @@ fun DriverMapScreen(
                             when (ride.status) {
                                 "accepted" -> {
                                     Button(onClick = { viewModel.updateRideStatus("ongoing") }, modifier = Modifier.fillMaxWidth()) {
-                                        Text("Yolcuyu Aldım (Start Trip)")
+                                        Text("Picked Up (Start Trip)")
                                     }
                                 }
                                 "ongoing" -> {
                                     Button(onClick = { viewModel.updateRideStatus("completed") }, modifier = Modifier.fillMaxWidth()) {
-                                        Text("Yolculuğu Tamamla")
+                                        Text("Complete Trip")
                                     }
                                 }
                             }

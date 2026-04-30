@@ -23,19 +23,23 @@
   - Hilt DI wired: UberApp (@HiltAndroidApp), MainActivity (@AndroidEntryPoint), AppModule provides Firebase singletons.
   - Navigation graph with 4 routes: auth, role_selection, passenger_map, driver_map.
   - Material3 theme with custom color tokens and typography.
-- **Deviations from plan:**
-  - compileSdk 36 instead of 35 (maps-compose 8.3.0 requires it). targetSdk remains 35.
-  - KSP version 2.3.6 instead of 2.3.21-1.0.32 (new KSP versioning scheme).
-  - hiltViewModel import uses `androidx.hilt.lifecycle.viewmodel.compose` (new path in 1.3.0+).
-- **Commit ready:** Yes.
 
-### Phase 2: Authentication and Roles (NOT STARTED)
-- Firebase Auth email/password sign-in and sign-up.
-- AuthScreen with login/register form UI.
-- RoleSelectionScreen with navigation to PassengerMap or DriverMap.
-- Firestore user profile creation with selected role.
+### Phase 2: Authentication and Roles -- COMPLETED
+- **Status:** Implemented. Sign-in, sign-up, role selection, and session persistence working.
+- **What was done:**
+  - Added `kotlinx-coroutines-play-services` dependency.
+  - Expanded `User` model with `createdAt`.
+  - Implemented `AuthRepository` (signIn, signUp, signOut) and `UserRepository` (Firestore CRUD).
+  - Built `AuthScreen` and `AuthViewModel` with full validation and state management.
+  - Built `RoleSelectionScreen` and `RoleSelectionViewModel` to handle user role assignment.
+  - Updated `AppNavGraph` to handle auto-routing based on auth state and role existence.
 
 ### Phase 3: Map and Location Services (NOT STARTED)
+- Google Maps integration (Passenger & Driver views).
+- Location permission handling.
+- LocationService implementation for real-time tracking.
+- LocationRepository implementation.
+
 ### Phase 4: Routing / Pathfinder (NOT STARTED)
 ### Phase 5: The Match (NOT STARTED)
 
@@ -48,6 +52,7 @@
 - AGP 9.x has built-in Kotlin support; separate kotlin.android plugin not applied at project level.
 - Secrets Gradle Plugin (2.0.1) used to inject MAPS_API_KEY from local.properties into the manifest.
 - hiltViewModel() uses newer import path from hilt-navigation-compose 1.3.0+.
+- User roles: "passenger" and "driver".
 
 ---
 

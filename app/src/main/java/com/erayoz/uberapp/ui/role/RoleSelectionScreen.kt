@@ -1,27 +1,87 @@
 package com.erayoz.uberapp.ui.role
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.Button
-import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @Composable
-fun RoleSelectionScreen(viewModel: RoleSelectionViewModel = hiltViewModel()) {
+fun RoleSelectionScreen(
+    onPassengerSelected: () -> Unit,
+    onDriverSelected: () -> Unit,
+    viewModel: RoleSelectionViewModel = hiltViewModel()
+) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    LaunchedEffect(uiState.selectedRole) {
+        when (uiState.selectedRole) {
+            "passenger" -> onPassengerSelected()
+            "driver" -> onDriverSelected()
+        }
+    }
+
     Column(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Button(onClick = { viewModel.selectPassenger() }) {
-            Text(text = "I am a Passenger")
+        Text(
+            text = "Choose Your Role",
+            style = MaterialTheme.typography.headlineMedium,
+            modifier = Modifier.padding(bottom = 32.dp)
+        )
+
+        if (uiState.isLoading) {
+            CircularProgressIndicator()
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                ElevatedCard(
+                    onClick = { viewModel.selectRole("passenger") },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(150.dp)
+                ) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("Passenger")
+                    }
+                }
+
+                ElevatedCard(
+                    onClick = { viewModel.selectRole("driver") },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(150.dp)
+                ) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("Driver")
+                    }
+                }
+            }
         }
-        Button(onClick = { viewModel.selectDriver() }) {
-            Text(text = "I am a Driver")
+
+        uiState.errorMessage?.let { error ->
+            Text(
+                text = error,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(top = 16.dp)
+            )
         }
     }
 }

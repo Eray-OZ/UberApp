@@ -20,10 +20,38 @@ fun AppNavGraph(modifier: Modifier = Modifier) {
         modifier = modifier
     ) {
         composable(Screen.Auth.route) {
-            AuthScreen()
+            AuthScreen(
+                onAuthSuccess = { role ->
+                    if (role != null) {
+                        val destination = if (role == "passenger") {
+                            Screen.PassengerMap.route
+                        } else {
+                            Screen.DriverMap.route
+                        }
+                        navController.navigate(destination) {
+                            popUpTo(Screen.Auth.route) { inclusive = true }
+                        }
+                    } else {
+                        navController.navigate(Screen.RoleSelection.route) {
+                            popUpTo(Screen.Auth.route) { inclusive = true }
+                        }
+                    }
+                }
+            )
         }
         composable(Screen.RoleSelection.route) {
-            RoleSelectionScreen()
+            RoleSelectionScreen(
+                onPassengerSelected = {
+                    navController.navigate(Screen.PassengerMap.route) {
+                        popUpTo(Screen.RoleSelection.route) { inclusive = true }
+                    }
+                },
+                onDriverSelected = {
+                    navController.navigate(Screen.DriverMap.route) {
+                        popUpTo(Screen.RoleSelection.route) { inclusive = true }
+                    }
+                }
+            )
         }
         composable(Screen.PassengerMap.route) {
             PassengerMapScreen()

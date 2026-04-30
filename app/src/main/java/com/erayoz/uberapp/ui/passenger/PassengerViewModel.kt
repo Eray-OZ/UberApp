@@ -19,6 +19,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import kotlin.math.abs
 import javax.inject.Inject
 
 data class PassengerMapUiState(
@@ -176,6 +177,10 @@ class PassengerViewModel @Inject constructor(
 
     private var rideObservationJob: Job? = null
     private var driverLocationJob: Job? = null
+    private var liveMetricsJob: Job? = null
+    private var lastDriverMetricOrigin: LatLng? = null
+    private var lastDriverMetricTarget: LatLng? = null
+    private var lastDriverMetricStatus: String? = null
 
     private fun observeRide(id: String) {
         rideObservationJob?.cancel()
@@ -196,6 +201,10 @@ class PassengerViewModel @Inject constructor(
                 } else {
                     driverLocationJob?.cancel()
                     driverLocationJob = null
+                    liveMetricsJob?.cancel()
+                    lastDriverMetricOrigin = null
+                    lastDriverMetricTarget = null
+                    lastDriverMetricStatus = null
                     _uiState.update { it.copy(driverLocation = null, driverDistance = "") }
                 }
 
@@ -203,6 +212,10 @@ class PassengerViewModel @Inject constructor(
                     // Stop tracking driver immediately
                     driverLocationJob?.cancel()
                     driverLocationJob = null
+                    liveMetricsJob?.cancel()
+                    lastDriverMetricOrigin = null
+                    lastDriverMetricTarget = null
+                    lastDriverMetricStatus = null
                     
                     if (ride?.status == "completed") {
                         // Keep 'completed' status for a moment to show the UI, but clear tracking data
@@ -238,25 +251,68 @@ class PassengerViewModel @Inject constructor(
             locationRepository.observeDriverLocation(driverId).collect { driverLoc ->
                 driverLoc?.let { loc ->
                     val driverLatLng = LatLng(loc.latitude, loc.longitude)
-                    val passengerLoc = _uiState.value.currentLocation
-                    val distanceText = if (passengerLoc != null) {
-                        val results = FloatArray(1)
-                        android.location.Location.distanceBetween(
-                            passengerLoc.latitude, passengerLoc.longitude,
-                            loc.latitude, loc.longitude,
-                            results
-                        )
-                        val distanceInKm = results[0] / 1000.0
-                        "%.1f km away".format(distanceInKm)
-                    } else ""
+                    val targetLoc = if (_uiState.value.rideStatus == "ongoing") {
+                        _uiState.value.destinationLocation
+                    } else {
+                        _uiState.value.currentLocation
+                    }
 
-                    _uiState.update { it.copy(
-                        driverLocation = driverLatLng,
-                        driverDistance = distanceText
-                    ) }
+                    if (targetLoc != null) {
+                        _uiState.update { it.copy(driverLocation = driverLatLng) }
+                        updateDriverMetrics(driverLatLng, targetLoc, _uiState.value.rideStatus)
+                    } else {
+                        _uiState.update { it.copy(driverLocation = driverLatLng) }
+                    }
                 }
             }
         }
+    }
+
+    private fun updateDriverMetrics(origin: LatLng, target: LatLng, status: String?) {
+        val safeStatus = status ?: return
+        if (!shouldRefreshDriverMetrics(origin, target, safeStatus)) return
+
+        liveMetricsJob?.cancel()
+        liveMetricsJob = viewModelScope.launch {
+            val originStr = "${origin.latitude},${origin.longitude}"
+            val targetStr = "${target.latitude},${target.longitude}"
+
+            directionsRepository.getDirections(originStr, targetStr).onSuccess { response ->
+                val leg = response.routes.firstOrNull()?.legs?.firstOrNull() ?: return@onSuccess
+                lastDriverMetricOrigin = origin
+                lastDriverMetricTarget = target
+                lastDriverMetricStatus = safeStatus
+                _uiState.update {
+                    it.copy(
+                        driverDistance = leg.distance.text,
+                        estimatedDuration = leg.duration.text
+                    )
+                }
+            }
+        }
+    }
+
+    private fun shouldRefreshDriverMetrics(origin: LatLng, target: LatLng, status: String): Boolean {
+        if (status != lastDriverMetricStatus) return true
+        if (!isSameCoordinate(target, lastDriverMetricTarget)) return true
+        val lastOrigin = lastDriverMetricOrigin ?: return true
+        return distanceBetween(origin, lastOrigin) >= 30.0
+    }
+
+    private fun isSameCoordinate(first: LatLng, second: LatLng?): Boolean {
+        second ?: return false
+        return abs(first.latitude - second.latitude) < 0.000001 &&
+            abs(first.longitude - second.longitude) < 0.000001
+    }
+
+    private fun distanceBetween(first: LatLng, second: LatLng): Float {
+        val results = FloatArray(1)
+        android.location.Location.distanceBetween(
+            first.latitude, first.longitude,
+            second.latitude, second.longitude,
+            results
+        )
+        return results[0]
     }
 
     fun clearRoute() {

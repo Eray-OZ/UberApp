@@ -16,13 +16,18 @@ class LocationRepository @Inject constructor(
     private val database: FirebaseDatabase
 ) {
     private val driversRef = database.getReference("driver_locations")
+    private var testOffsetEnabled = true
+
+    fun setTestOffsetEnabled(enabled: Boolean) {
+        testOffsetEnabled = enabled
+    }
 
     fun updateDriverLocation(location: com.erayoz.uberapp.data.model.DriverLocation) {
         var lat = location.latitude
         var lng = location.longitude
         
-        // Global Test Hack: Separate driver from passenger in emulators
-        if (lat == 37.4219983 && lng == -122.084) {
+        // Robust Test Hack: If within Googleplex area AND offset is enabled, offset the driver
+        if (testOffsetEnabled && Math.abs(lat - 37.4219983) < 0.005 && Math.abs(lng - (-122.084)) < 0.005) {
             lat = 37.415
             lng = -122.078
         }

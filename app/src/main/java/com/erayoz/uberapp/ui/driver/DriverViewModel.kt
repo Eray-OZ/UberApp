@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 import javax.inject.Inject
 
 data class DriverMapUiState(
@@ -51,6 +52,10 @@ class DriverViewModel @Inject constructor(
     }
 
     private var activeRideJob: Job? = null
+    private var liveMetricsJob: Job? = null
+    private var lastMetricsOrigin: LatLng? = null
+    private var lastMetricsTarget: LatLng? = null
+    private var lastMetricsStatus: String? = null
 
     private fun checkForActiveRide() {
         val uid = driverId ?: return
@@ -89,19 +94,49 @@ class DriverViewModel @Inject constructor(
             LatLng(ride.destinationLatitude, ride.destinationLongitude)
         }
 
+        if (!shouldRefreshLiveMetrics(current, target, ride.status)) return
+
+        liveMetricsJob?.cancel()
+        liveMetricsJob = viewModelScope.launch {
+            val origin = "${current.latitude},${current.longitude}"
+            val destination = "${target.latitude},${target.longitude}"
+
+            directionsRepository.getDirections(origin, destination).onSuccess { response ->
+                val leg = response.routes.firstOrNull()?.legs?.firstOrNull() ?: return@onSuccess
+                lastMetricsOrigin = current
+                lastMetricsTarget = target
+                lastMetricsStatus = ride.status
+                _uiState.update {
+                    it.copy(
+                        activeDistance = leg.distance.text,
+                        activeDuration = leg.duration.text
+                    )
+                }
+            }
+        }
+    }
+
+    private fun shouldRefreshLiveMetrics(origin: LatLng, target: LatLng, status: String): Boolean {
+        if (status != lastMetricsStatus) return true
+        if (!isSameCoordinate(target, lastMetricsTarget)) return true
+        val lastOrigin = lastMetricsOrigin ?: return true
+        return distanceBetween(origin, lastOrigin) >= 30.0
+    }
+
+    private fun isSameCoordinate(first: LatLng, second: LatLng?): Boolean {
+        second ?: return false
+        return abs(first.latitude - second.latitude) < 0.000001 &&
+            abs(first.longitude - second.longitude) < 0.000001
+    }
+
+    private fun distanceBetween(first: LatLng, second: LatLng): Float {
         val results = FloatArray(1)
         android.location.Location.distanceBetween(
-            current.latitude, current.longitude,
-            target.latitude, target.longitude,
+            first.latitude, first.longitude,
+            second.latitude, second.longitude,
             results
         )
-        val distanceInKm = results[0] / 1000.0
-        val estimatedTime = (results[0] / 10.0 / 60.0).toInt() // Rough estimate: 10m/s
-        
-        _uiState.update { it.copy(
-            activeDistance = "%.1f km".format(distanceInKm),
-            activeDuration = "$estimatedTime mins"
-        ) }
+        return results[0]
     }
 
     private fun observePendingRides() {
@@ -132,6 +167,13 @@ class DriverViewModel @Inject constructor(
             rideRepository.observeRideRequest(rideId).collect { ride ->
                 _activeRide.value = ride
                 
+                // Toggle test offset: Disable during trip to get accurate road distance
+                if (ride?.status == "ongoing") {
+                    locationRepository.setTestOffsetEnabled(false)
+                } else {
+                    locationRepository.setTestOffsetEnabled(true)
+                }
+
                 if (ride?.status == "accepted") {
                     calculateRouteToPickup(ride)
                 } else {
@@ -140,6 +182,11 @@ class DriverViewModel @Inject constructor(
 
                 if (ride == null || ride.status == "completed" || ride.status == "cancelled") {
                     _activeRide.value = null
+                    liveMetricsJob?.cancel()
+                    lastMetricsOrigin = null
+                    lastMetricsTarget = null
+                    lastMetricsStatus = null
+                    _uiState.update { it.copy(activeDistance = "", activeDuration = "") }
                     // Sürüş bittiğinde tekrar bekleyenleri dinlemeye başla (zaten init'te var ama listeyi temizlemiştik)
                 }
             }

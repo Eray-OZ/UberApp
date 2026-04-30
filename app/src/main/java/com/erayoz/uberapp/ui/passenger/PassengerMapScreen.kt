@@ -36,11 +36,14 @@ fun PassengerMapScreen(
 
     LocationPermissionHelper(
         onPermissionGranted = {
+            val isEmulator = remember { com.erayoz.uberapp.util.EmulatorUtils.isEmulator() }
+            val defaultLocation = if (isEmulator) LatLng(37.4219983, -122.084) else LatLng(41.0082, 28.9784)
+            
             var hasCenteredOnLocation by remember { mutableStateOf(false) }
             val cameraPositionState = rememberCameraPositionState {
                 position = CameraPosition.fromLatLngZoom(
-                    uiState.currentLocation ?: LatLng(41.0082, 28.9784), 
-                    if (uiState.currentLocation != null) 15f else 10f
+                    uiState.currentLocation ?: defaultLocation, 
+                    if (uiState.currentLocation != null || isEmulator) 15f else 10f
                 )
             }
 

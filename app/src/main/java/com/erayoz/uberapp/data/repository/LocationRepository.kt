@@ -11,12 +11,14 @@ import kotlinx.coroutines.flow.callbackFlow
 import javax.inject.Inject
 import javax.inject.Singleton
 
+import com.erayoz.uberapp.util.EmulatorUtils
+
 @Singleton
 class LocationRepository @Inject constructor(
     private val database: FirebaseDatabase
 ) {
     private val driversRef = database.getReference("driver_locations")
-    private var testOffsetEnabled = true
+    private var testOffsetEnabled = EmulatorUtils.isEmulator()
 
     fun setTestOffsetEnabled(enabled: Boolean) {
         testOffsetEnabled = enabled

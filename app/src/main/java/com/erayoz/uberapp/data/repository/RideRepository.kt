@@ -1,7 +1,15 @@
 package com.erayoz.uberapp.data.repository
 
+import com.erayoz.uberapp.data.model.RideRequest
+import com.google.firebase.database.DataSnapshot
+import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.database.ValueEventListener
 import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -10,7 +18,41 @@ class RideRepository @Inject constructor(
     private val firestore: FirebaseFirestore,
     private val database: FirebaseDatabase
 ) {
-    fun ridesCollectionPath(): String = firestore.collection("rides").path
+    private val ridesCollection = firestore.collection("rides")
+    private val rideEventsRef = database.getReference("ride_events")
 
-    fun rideEventsPath(): String = database.getReference("ride_events").path.toString()
+    suspend fun createRideRequest(rideRequest: RideRequest): Result<String> {
+        return try {
+            val docRef = ridesCollection.document()
+            val rideWithId = rideRequest.copy(id = docRef.id)
+            docRef.set(rideWithId).await()
+            Result.success(docRef.id)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    fun observeRideRequest(rideId: String): Flow<RideRequest?> = callbackFlow {
+        val listener = ridesCollection.document(rideId).addSnapshotListener { snapshot, error ->
+            if (error != null) {
+                close(error)
+                return@addSnapshotListener
+            }
+            trySend(snapshot?.toObject(RideRequest::class.java))
+        }
+        awaitClose { listener.remove() }
+    }
+
+    suspend fun updateRideStatus(rideId: String, status: String): Result<Unit> {
+        return try {
+            ridesCollection.document(rideId).update("status", status).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun cancelRide(rideId: String): Result<Unit> {
+        return updateRideStatus(rideId, "cancelled")
+    }
 }

@@ -6,6 +6,7 @@ import com.erayoz.uberapp.data.repository.AuthRepository
 import com.erayoz.uberapp.data.repository.LocationRepository
 import com.erayoz.uberapp.data.repository.RideRepository
 import com.erayoz.uberapp.data.model.RideRequest
+import com.erayoz.uberapp.data.repository.DirectionsRepository
 import com.google.android.gms.maps.model.LatLng
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,14 +19,16 @@ import javax.inject.Inject
 
 data class DriverMapUiState(
     val isTracking: Boolean = false,
-    val currentLocation: LatLng? = null
+    val currentLocation: LatLng? = null,
+    val routeToPickup: List<LatLng> = emptyList()
 )
 
 @HiltViewModel
 class DriverViewModel @Inject constructor(
     private val locationRepository: LocationRepository,
     private val authRepository: AuthRepository,
-    private val rideRepository: RideRepository
+    private val rideRepository: RideRepository,
+    private val directionsRepository: DirectionsRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DriverMapUiState())
@@ -100,6 +103,13 @@ class DriverViewModel @Inject constructor(
         activeRideJob = viewModelScope.launch {
             rideRepository.observeRideRequest(rideId).collect { ride ->
                 _activeRide.value = ride
+                
+                if (ride?.status == "accepted") {
+                    calculateRouteToPickup(ride)
+                } else {
+                    _uiState.update { it.copy(routeToPickup = emptyList()) }
+                }
+
                 if (ride == null || ride.status == "completed" || ride.status == "cancelled") {
                     _activeRide.value = null
                     // Sürüş bittiğinde tekrar bekleyenleri dinlemeye başla (zaten init'te var ama listeyi temizlemiştik)
@@ -121,5 +131,21 @@ class DriverViewModel @Inject constructor(
 
     fun signOut() {
         authRepository.signOut()
+    }
+
+    private fun calculateRouteToPickup(ride: RideRequest) {
+        val driverLoc = _uiState.value.currentLocation ?: return
+        val origin = "${driverLoc.latitude},${driverLoc.longitude}"
+        val destination = "${ride.pickupLatitude},${ride.pickupLongitude}"
+        
+        viewModelScope.launch {
+            directionsRepository.getDirections(origin, destination).onSuccess { response ->
+                val points = response.routes.firstOrNull()?.overviewPolyline?.points
+                if (points != null) {
+                    val decodedPoints = com.google.maps.android.PolyUtil.decode(points)
+                    _uiState.update { it.copy(routeToPickup = decodedPoints) }
+                }
+            }
+        }
     }
 }

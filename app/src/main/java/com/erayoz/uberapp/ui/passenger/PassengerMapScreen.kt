@@ -45,13 +45,13 @@ fun PassengerMapScreen(
 
             // Camera update based on ride state
             LaunchedEffect(uiState.rideStatus, uiState.currentLocation, uiState.driverLocation, uiState.destinationLocation) {
-                val builder = LatLngBounds.Builder()
-                val points = mutableListOf<LatLng>()
+                // Don't override user manual interaction
+                if (cameraPositionState.isMoving) return@LaunchedEffect
 
+                val points = mutableListOf<LatLng>()
                 fun addIfValid(latLng: LatLng?) {
                     if (latLng != null && latLng.latitude != 0.0 && latLng.longitude != 0.0) {
                         points.add(latLng)
-                        builder.include(latLng)
                     }
                 }
 
@@ -86,11 +86,29 @@ fun PassengerMapScreen(
                     }
                 }
 
-                if (points.size >= 2) {
-                    val bounds = builder.build()
-                    cameraPositionState.animate(CameraUpdateFactory.newLatLngBounds(bounds, 150))
-                } else if (points.size == 1) {
-                    cameraPositionState.animate(CameraUpdateFactory.newLatLngZoom(points[0], 15f))
+                if (points.isNotEmpty()) {
+                    val distinctPoints = points.distinct()
+                    if (distinctPoints.size >= 2) {
+                        val builder = LatLngBounds.Builder()
+                        distinctPoints.forEach { builder.include(it) }
+                        val bounds = builder.build()
+                        
+                        // Check if points are too close (prevent weird zoom)
+                        val results = FloatArray(1)
+                        android.location.Location.distanceBetween(
+                            distinctPoints[0].latitude, distinctPoints[0].longitude,
+                            distinctPoints[1].latitude, distinctPoints[1].longitude,
+                            results
+                        )
+                        
+                        if (results[0] < 50f) { // Closer than 50 meters
+                            cameraPositionState.animate(CameraUpdateFactory.newLatLngZoom(distinctPoints[0], 15f))
+                        } else {
+                            cameraPositionState.animate(CameraUpdateFactory.newLatLngBounds(bounds, 150))
+                        }
+                    } else if (distinctPoints.size == 1) {
+                        cameraPositionState.animate(CameraUpdateFactory.newLatLngZoom(distinctPoints[0], 15f))
+                    }
                 }
             }
 
@@ -106,7 +124,7 @@ fun PassengerMapScreen(
                     uiState.currentLocation?.let {
                         Marker(
                             state = MarkerState(position = it),
-                            title = "Pickup Location",
+                            title = "Başlangıç Noktası (Siz)",
                             icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE)
                         )
                     }
@@ -120,7 +138,8 @@ fun PassengerMapScreen(
                         uiState.destinationLocation?.let {
                             Marker(
                                 state = MarkerState(position = it),
-                                title = "Destination"
+                                title = "Varış Noktası",
+                                icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN)
                             )
                         }
                     }
@@ -129,7 +148,7 @@ fun PassengerMapScreen(
                     uiState.driverLocation?.let {
                         Marker(
                             state = MarkerState(position = it),
-                            title = "Your Driver",
+                            title = "Sürücü (Yolda)",
                             icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_YELLOW)
                         )
                     }

@@ -198,7 +198,29 @@ class PassengerViewModel @Inject constructor(
                 }
 
                 if (ride == null || ride.status == "completed" || ride.status == "cancelled") {
+                    // Stop tracking driver immediately
+                    driverLocationJob?.cancel()
+                    driverLocationJob = null
+                    
                     if (ride?.status == "completed") {
+                        // Keep 'completed' status for a moment to show the UI, but clear tracking data
+                        _uiState.update { it.copy(
+                            driverLocation = null,
+                            driverDistance = "",
+                            driverId = null
+                        ) }
+                        
+                        // After a short delay or manual action, we could clear everything.
+                        // For now, let's ensure it doesn't stay 'ongoing'
+                        viewModelScope.launch {
+                            kotlinx.coroutines.delay(5000) // Show 'Completed' for 5 secs
+                            if (_uiState.value.rideStatus == "completed") {
+                                clearRoute()
+                                _uiState.update { it.copy(rideId = null, rideStatus = null) }
+                                rideObservationJob?.cancel()
+                            }
+                        }
+                    } else if (ride?.status == "cancelled" || ride == null) {
                         clearRoute()
                         _uiState.update { it.copy(rideId = null, rideStatus = null, driverId = null, driverLocation = null, driverDistance = "") }
                         rideObservationJob?.cancel()

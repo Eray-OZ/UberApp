@@ -2,6 +2,7 @@ package com.erayoz.uberapp.data.repository
 
 import com.erayoz.uberapp.data.model.User
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -33,7 +34,9 @@ class UserRepository @Inject constructor(
 
     suspend fun updateUserRole(userId: String, role: String): Result<Unit> {
         return try {
-            usersCollection.document(userId).update("role", role).await()
+            usersCollection.document(userId)
+                .set(mapOf("role" to role), SetOptions.merge())
+                .await()
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)

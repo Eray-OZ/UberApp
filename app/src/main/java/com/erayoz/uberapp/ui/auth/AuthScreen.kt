@@ -21,7 +21,7 @@ fun AuthScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    LaunchedEffect(uiState.isAuthenticated) {
+    LaunchedEffect(uiState.isAuthenticated, uiState.userRole) {
         if (uiState.isAuthenticated) {
             onAuthSuccess(uiState.userRole)
         }

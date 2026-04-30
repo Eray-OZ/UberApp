@@ -29,7 +29,7 @@ class RoleSelectionViewModel @Inject constructor(
 
     fun selectRole(role: String) {
         val uid = authRepository.getCurrentUserId() ?: return
-        
+
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, errorMessage = null) }
             userRepository.updateUserRole(uid, role).onSuccess {
@@ -38,5 +38,9 @@ class RoleSelectionViewModel @Inject constructor(
                 _uiState.update { it.copy(isLoading = false, errorMessage = e.message) }
             }
         }
+    }
+
+    fun consumeNavigation() {
+        _uiState.update { it.copy(selectedRole = null) }
     }
 }

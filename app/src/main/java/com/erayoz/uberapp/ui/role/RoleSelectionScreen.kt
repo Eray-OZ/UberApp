@@ -21,8 +21,14 @@ fun RoleSelectionScreen(
 
     LaunchedEffect(uiState.selectedRole) {
         when (uiState.selectedRole) {
-            "passenger" -> onPassengerSelected()
-            "driver" -> onDriverSelected()
+            "passenger" -> {
+                viewModel.consumeNavigation()
+                onPassengerSelected()
+            }
+            "driver" -> {
+                viewModel.consumeNavigation()
+                onDriverSelected()
+            }
         }
     }
 

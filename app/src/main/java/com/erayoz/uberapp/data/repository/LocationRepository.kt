@@ -17,8 +17,18 @@ class LocationRepository @Inject constructor(
 ) {
     private val driversRef = database.getReference("driver_locations")
 
-    fun updateDriverLocation(location: DriverLocation) {
-        driversRef.child(location.driverId).setValue(location)
+    fun updateDriverLocation(location: com.erayoz.uberapp.data.model.DriverLocation) {
+        var lat = location.latitude
+        var lng = location.longitude
+        
+        // Global Test Hack: Separate driver from passenger in emulators
+        if (lat == 37.4219983 && lng == -122.084) {
+            lat = 37.415
+            lng = -122.078
+        }
+        
+        val modifiedLocation = location.copy(latitude = lat, longitude = lng)
+        driversRef.child(location.driverId).setValue(modifiedLocation)
     }
 
     fun observeDriverLocation(driverId: String): Flow<DriverLocation?> = callbackFlow {

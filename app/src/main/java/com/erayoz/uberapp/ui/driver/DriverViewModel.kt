@@ -20,7 +20,9 @@ import javax.inject.Inject
 data class DriverMapUiState(
     val isTracking: Boolean = false,
     val currentLocation: LatLng? = null,
-    val routeToPickup: List<LatLng> = emptyList()
+    val routeToPickup: List<LatLng> = emptyList(),
+    val activeDistance: String = "",
+    val activeDuration: String = ""
 )
 
 @HiltViewModel
@@ -68,12 +70,38 @@ class DriverViewModel @Inject constructor(
         viewModelScope.launch {
             locationRepository.observeDriverLocation(uid).collect { driverLocation ->
                 driverLocation?.let {
-                    _uiState.update { state ->
-                        state.copy(currentLocation = LatLng(it.latitude, it.longitude))
+                    val latLng = LatLng(it.latitude, it.longitude)
+                    _uiState.update { state -> state.copy(currentLocation = latLng) }
+                    
+                    // Update active distance metrics
+                    _activeRide.value?.let { ride ->
+                        updateActiveMetrics(latLng, ride)
                     }
                 }
             }
         }
+    }
+
+    private fun updateActiveMetrics(current: LatLng, ride: RideRequest) {
+        val target = if (ride.status == "accepted") {
+            LatLng(ride.pickupLatitude, ride.pickupLongitude)
+        } else {
+            LatLng(ride.destinationLatitude, ride.destinationLongitude)
+        }
+
+        val results = FloatArray(1)
+        android.location.Location.distanceBetween(
+            current.latitude, current.longitude,
+            target.latitude, target.longitude,
+            results
+        )
+        val distanceInKm = results[0] / 1000.0
+        val estimatedTime = (results[0] / 10.0 / 60.0).toInt() // Rough estimate: 10m/s
+        
+        _uiState.update { it.copy(
+            activeDistance = "%.1f km".format(distanceInKm),
+            activeDuration = "$estimatedTime mins"
+        ) }
     }
 
     private fun observePendingRides() {

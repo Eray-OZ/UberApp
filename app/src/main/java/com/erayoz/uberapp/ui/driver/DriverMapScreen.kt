@@ -122,9 +122,23 @@ fun DriverMapScreen(
                         val dest = LatLng(ride.destinationLatitude, ride.destinationLongitude)
                         val points = PolyUtil.decode(ride.polylinePoints)
 
-                        Marker(state = MarkerState(position = pickup), title = "Alınacak Nokta", alpha = 0.6f)
+                        Marker(
+                            state = MarkerState(position = pickup),
+                            title = "Alınacak Yolcu",
+                            icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE),
+                            alpha = 0.8f
+                        )
                         Marker(state = MarkerState(position = dest), title = "Hedef", alpha = 0.6f)
                         Polyline(points = points, color = Color.Gray.copy(alpha = 0.5f), width = 10f)
+                    }
+
+                    // Driver's own marker
+                    uiState.currentLocation?.let {
+                        Marker(
+                            state = MarkerState(position = it),
+                            title = "Siz",
+                            icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_YELLOW)
+                        )
                     }
                 }
 
@@ -204,6 +218,17 @@ fun DriverMapScreen(
                         Column(modifier = Modifier.padding(16.dp)) {
                             Text(if (ride.status == "accepted") "Sizi Bekleyen Yolcu" else "Yolculuk Başladı", fontWeight = FontWeight.Bold)
                             if (ride.status == "ongoing") Text("Hedef: ${ride.destinationAddress}")
+                            
+                            if (uiState.activeDistance.isNotEmpty()) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                                ) {
+                                    Text("Mesafe: ${uiState.activeDistance}", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+                                    Text("Süre: ${uiState.activeDuration}", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+                                }
+                            }
+
                             Text("Durum: ${ride.status.replaceFirstChar { it.uppercase() }}")
                             Spacer(modifier = Modifier.height(16.dp))
                             

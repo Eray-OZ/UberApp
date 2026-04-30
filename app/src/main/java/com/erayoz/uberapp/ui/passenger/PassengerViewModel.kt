@@ -191,6 +191,8 @@ class PassengerViewModel @Inject constructor(
                     if (driverLocationJob == null || _uiState.value.driverId != ride.driverId) {
                         observeDriverLocation(ride.driverId)
                     }
+                } else if (ride?.status == "pending" || ride?.status == "accepted" || ride?.status == "ongoing") {
+                    // Do NOT clear location during transition between these states
                 } else {
                     driverLocationJob?.cancel()
                     driverLocationJob = null

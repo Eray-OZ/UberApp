@@ -33,7 +33,8 @@ data class PassengerMapUiState(
     val rideId: String? = null,
     val rideStatus: String? = null,
     val driverId: String? = null,
-    val driverLocation: LatLng? = null
+    val driverLocation: LatLng? = null,
+    val destinationAddress: String = ""
 )
 
 @HiltViewModel
@@ -83,7 +84,12 @@ class PassengerViewModel @Inject constructor(
     }
 
     fun selectDestination(prediction: AutocompletePrediction) {
-        _uiState.update { it.copy(searchQuery = prediction.getFullText(null).toString(), searchPredictions = emptyList()) }
+        val address = prediction.getFullText(null).toString()
+        _uiState.update { it.copy(
+            searchQuery = address,
+            destinationAddress = address,
+            searchPredictions = emptyList()
+        ) }
         viewModelScope.launch {
             val coords = placesRepository.getPlaceCoordinates(prediction.placeId)
             coords?.let { dest ->
@@ -128,6 +134,7 @@ class PassengerViewModel @Inject constructor(
             pickupLongitude = pickup.longitude,
             destinationLatitude = dest.latitude,
             destinationLongitude = dest.longitude,
+            destinationAddress = state.destinationAddress,
             distanceText = state.estimatedDistance,
             durationText = state.estimatedDuration,
             price = state.estimatedPrice,

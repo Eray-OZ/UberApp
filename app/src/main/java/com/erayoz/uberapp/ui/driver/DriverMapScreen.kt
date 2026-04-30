@@ -2,6 +2,8 @@ package com.erayoz.uberapp.ui.driver
 
 import android.content.Intent
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
@@ -11,8 +13,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -43,6 +43,22 @@ fun DriverMapScreen(
                 position = CameraPosition.fromLatLngZoom(LatLng(41.0082, 28.9784), 10f)
             }
 
+            val pagerState = rememberPagerState(pageCount = { pendingRides.size })
+
+            // Animate map when swiping pending rides
+            LaunchedEffect(pagerState.currentPage, pendingRides, activeRide) {
+                if (activeRide == null && pendingRides.isNotEmpty()) {
+                    val ride = pendingRides[pagerState.currentPage]
+                    val points = PolyUtil.decode(ride.polylinePoints)
+                    if (points.isNotEmpty()) {
+                        val builder = LatLngBounds.Builder()
+                        points.forEach { builder.include(it) }
+                        val bounds = builder.build()
+                        cameraPositionState.animate(CameraUpdateFactory.newLatLngBounds(bounds, 100))
+                    }
+                }
+            }
+
             // Zoom to route when ride is active
             LaunchedEffect(activeRide) {
                 activeRide?.let { ride ->
@@ -57,7 +73,7 @@ fun DriverMapScreen(
             }
 
             LaunchedEffect(uiState.currentLocation) {
-                if (activeRide == null) {
+                if (activeRide == null && pendingRides.isEmpty()) {
                     uiState.currentLocation?.let {
                         cameraPositionState.animate(CameraUpdateFactory.newLatLngZoom(it, 15f))
                     }
@@ -71,6 +87,7 @@ fun DriverMapScreen(
                     properties = MapProperties(isMyLocationEnabled = true),
                     uiSettings = MapUiSettings(myLocationButtonEnabled = true)
                 ) {
+                    // Route for active ride
                     activeRide?.let { ride ->
                         val pickup = LatLng(ride.pickupLatitude, ride.pickupLongitude)
                         val dest = LatLng(ride.destinationLatitude, ride.destinationLongitude)
@@ -87,6 +104,25 @@ fun DriverMapScreen(
                         )
                         Polyline(points = points, color = Color.Blue, width = 12f)
                     }
+
+                    // Route for selected pending ride
+                    if (activeRide == null && pendingRides.isNotEmpty() && uiState.isTracking) {
+                        val ride = pendingRides[pagerState.currentPage]
+                        val pickup = LatLng(ride.pickupLatitude, ride.pickupLongitude)
+                        val dest = LatLng(ride.destinationLatitude, ride.destinationLongitude)
+                        val points = PolyUtil.decode(ride.polylinePoints)
+
+                        Marker(
+                            state = MarkerState(position = pickup),
+                            title = "Pickup",
+                            icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE)
+                        )
+                        Marker(
+                            state = MarkerState(position = dest),
+                            title = "Destination"
+                        )
+                        Polyline(points = points, color = Color.Gray.copy(alpha = 0.8f), width = 10f)
+                    }
                 }
 
                 // Top Controls
@@ -97,7 +133,6 @@ fun DriverMapScreen(
                         .padding(16.dp),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    // Logout Button
                     IconButton(
                         onClick = {
                             viewModel.signOut()
@@ -110,7 +145,6 @@ fun DriverMapScreen(
                         Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = "Logout")
                     }
 
-                    // Online/Offline Button
                     Button(
                         onClick = {
                             val isOnline = !uiState.isTracking
@@ -132,15 +166,12 @@ fun DriverMapScreen(
 
                 // New Ride Request Overlay
                 if (pendingRides.isNotEmpty() && activeRide == null && uiState.isTracking) {
-                    val pagerState = rememberPagerState(pageCount = { pendingRides.size })
-                    
                     Column(
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
                             .fillMaxWidth()
                             .padding(bottom = 16.dp)
                     ) {
-                        // Page indicator
                         if (pendingRides.size > 1) {
                             Text(
                                 text = "${pagerState.currentPage + 1} / ${pendingRides.size} Requests",
@@ -165,8 +196,10 @@ fun DriverMapScreen(
                             ) {
                                 Column(modifier = Modifier.padding(16.dp)) {
                                     Text("New Ride Request!", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
-                                    Text("Distance: ${ride.distanceText}")
-                                    Text("Duration: ${ride.durationText}")
+                                    if (ride.destinationAddress.isNotEmpty()) {
+                                        Text("To: ${ride.destinationAddress}", fontWeight = FontWeight.Medium)
+                                    }
+                                    Text("Distance: ${ride.distanceText} (${ride.durationText})")
                                     Text("Price: ₺${"%.2f".format(ride.price)}")
                                     Spacer(modifier = Modifier.height(16.dp))
                                     Button(
@@ -192,6 +225,9 @@ fun DriverMapScreen(
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
                             Text("Active Ride", fontWeight = FontWeight.Bold)
+                            if (ride.destinationAddress.isNotEmpty()) {
+                                Text("Destination: ${ride.destinationAddress}")
+                            }
                             Text("Status: ${ride.status.replaceFirstChar { it.uppercase() }}")
                             Spacer(modifier = Modifier.height(16.dp))
                             

@@ -43,6 +43,34 @@ class RideRepository @Inject constructor(
         awaitClose { listener.remove() }
     }
 
+    fun observePendingRides(): Flow<List<RideRequest>> = callbackFlow {
+        val listener = ridesCollection
+            .whereEqualTo("status", "pending")
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    close(error)
+                    return@addSnapshotListener
+                }
+                val rides = snapshot?.documents?.mapNotNull { it.toObject(RideRequest::class.java) } ?: emptyList()
+                trySend(rides)
+            }
+        awaitClose { listener.remove() }
+    }
+
+    suspend fun acceptRide(rideId: String, driverId: String): Result<Unit> {
+        return try {
+            ridesCollection.document(rideId).update(
+                mapOf(
+                    "status" to "accepted",
+                    "driverId" to driverId
+                )
+            ).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun updateRideStatus(rideId: String, status: String): Result<Unit> {
         return try {
             ridesCollection.document(rideId).update("status", status).await()

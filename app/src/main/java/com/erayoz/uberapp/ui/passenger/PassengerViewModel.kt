@@ -8,6 +8,7 @@ import com.erayoz.uberapp.data.repository.AuthRepository
 import com.erayoz.uberapp.data.repository.DirectionsRepository
 import com.erayoz.uberapp.data.repository.PlacesRepository
 import com.erayoz.uberapp.data.repository.RideRepository
+import com.erayoz.uberapp.data.repository.LocationRepository
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.Priority
 import com.google.android.gms.maps.model.LatLng
@@ -30,7 +31,9 @@ data class PassengerMapUiState(
     val estimatedDuration: String = "",
     val estimatedPrice: Double = 0.0,
     val rideId: String? = null,
-    val rideStatus: String? = null
+    val rideStatus: String? = null,
+    val driverId: String? = null,
+    val driverLocation: LatLng? = null
 )
 
 @HiltViewModel
@@ -39,7 +42,8 @@ class PassengerViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val placesRepository: PlacesRepository,
     private val directionsRepository: DirectionsRepository,
-    private val rideRepository: RideRepository
+    private val rideRepository: RideRepository,
+    private val locationRepository: LocationRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(PassengerMapUiState())
@@ -127,7 +131,8 @@ class PassengerViewModel @Inject constructor(
             distanceText = state.estimatedDistance,
             durationText = state.estimatedDuration,
             price = state.estimatedPrice,
-            polylinePoints = com.google.maps.android.PolyUtil.encode(state.polylinePoints)
+            polylinePoints = com.google.maps.android.PolyUtil.encode(state.polylinePoints),
+            status = "pending"
         )
 
         viewModelScope.launch {
@@ -141,7 +146,32 @@ class PassengerViewModel @Inject constructor(
     private fun observeRide(id: String) {
         viewModelScope.launch {
             rideRepository.observeRideRequest(id).collect { ride ->
-                _uiState.update { it.copy(rideStatus = ride?.status) }
+                _uiState.update { it.copy(
+                    rideStatus = ride?.status,
+                    driverId = ride?.driverId
+                ) }
+                
+                if (ride?.driverId != null && (ride.status == "accepted" || ride.status == "ongoing")) {
+                    observeDriverLocation(ride.driverId)
+                }
+
+                if (ride == null || ride.status == "completed" || ride.status == "cancelled") {
+                    // Reset UI after completion
+                    if (ride?.status == "completed") {
+                        clearRoute()
+                        _uiState.update { it.copy(rideId = null, rideStatus = null, driverId = null, driverLocation = null) }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun observeDriverLocation(driverId: String) {
+        viewModelScope.launch {
+            locationRepository.observeDriverLocation(driverId).collect { driverLoc ->
+                driverLoc?.let { loc ->
+                    _uiState.update { it.copy(driverLocation = LatLng(loc.latitude, loc.longitude)) }
+                }
             }
         }
     }

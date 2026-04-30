@@ -14,6 +14,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -57,6 +58,7 @@ fun PassengerMapScreen(
             }
 
             Box(modifier = Modifier.fillMaxSize()) {
+                // Map as Background
                 GoogleMap(
                     modifier = Modifier.fillMaxSize(),
                     cameraPositionState = cameraPositionState,
@@ -85,6 +87,15 @@ fun PassengerMapScreen(
                             )
                         }
                     }
+
+                    // Live Driver Marker
+                    uiState.driverLocation?.let {
+                        Marker(
+                            state = MarkerState(position = it),
+                            title = "Your Driver",
+                            icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_YELLOW)
+                        )
+                    }
                 }
 
                 // Overlay UI
@@ -94,48 +105,50 @@ fun PassengerMapScreen(
                         .padding(16.dp)
                         .statusBarsPadding()
                 ) {
-                    // Search Bar
-                    OutlinedTextField(
-                        value = uiState.searchQuery,
-                        onValueChange = viewModel::onSearchQueryChanged,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(MaterialTheme.colorScheme.surface, MaterialTheme.shapes.medium),
-                        placeholder = { Text("Where to?") },
-                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                        trailingIcon = {
-                            if (uiState.searchQuery.isNotEmpty()) {
-                                IconButton(onClick = viewModel::clearRoute) {
-                                    Icon(Icons.Default.Close, contentDescription = "Clear")
-                                }
-                            }
-                        },
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = MaterialTheme.colorScheme.surface,
-                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                        ),
-                        shape = MaterialTheme.shapes.medium
-                    )
-
-                    // Search Results
-                    if (uiState.searchPredictions.isNotEmpty()) {
-                        Surface(
+                    // Search Bar (Only show if no active ride or if pending)
+                    if (uiState.rideStatus == null) {
+                        OutlinedTextField(
+                            value = uiState.searchQuery,
+                            onValueChange = viewModel::onSearchQueryChanged,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(top = 4.dp),
-                            shape = MaterialTheme.shapes.medium,
-                            tonalElevation = 8.dp
-                        ) {
-                            LazyColumn(modifier = Modifier.heightIn(max = 300.dp)) {
-                                items(uiState.searchPredictions) { prediction ->
-                                    ListItem(
-                                        headlineContent = { Text(prediction.getPrimaryText(null).toString()) },
-                                        supportingContent = { Text(prediction.getSecondaryText(null).toString()) },
-                                        modifier = Modifier.clickable {
-                                            viewModel.selectDestination(prediction)
-                                        }
-                                    )
-                                    HorizontalDivider()
+                                .background(MaterialTheme.colorScheme.surface, MaterialTheme.shapes.medium),
+                            placeholder = { Text("Where to?") },
+                            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                            trailingIcon = {
+                                if (uiState.searchQuery.isNotEmpty()) {
+                                    IconButton(onClick = viewModel::clearRoute) {
+                                        Icon(Icons.Default.Close, contentDescription = "Clear")
+                                    }
+                                }
+                            },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedContainerColor = MaterialTheme.colorScheme.surface,
+                                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                            ),
+                            shape = MaterialTheme.shapes.medium
+                        )
+
+                        // Search Results
+                        if (uiState.searchPredictions.isNotEmpty()) {
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 4.dp),
+                                shape = MaterialTheme.shapes.medium,
+                                tonalElevation = 8.dp
+                            ) {
+                                LazyColumn(modifier = Modifier.heightIn(max = 300.dp)) {
+                                    items(uiState.searchPredictions) { prediction ->
+                                        ListItem(
+                                            headlineContent = { Text(prediction.getPrimaryText(null).toString()) },
+                                            supportingContent = { Text(prediction.getSecondaryText(null).toString()) },
+                                            modifier = Modifier.clickable {
+                                                viewModel.selectDestination(prediction)
+                                            }
+                                        )
+                                        HorizontalDivider()
+                                    }
                                 }
                             }
                         }
@@ -150,7 +163,7 @@ fun PassengerMapScreen(
                     },
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .padding(top = 80.dp, end = 16.dp) // Adjusted to not overlap with search
+                        .padding(top = 80.dp, end = 16.dp)
                         .statusBarsPadding(),
                     colors = IconButtonDefaults.iconButtonColors(
                         containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f),
@@ -206,14 +219,28 @@ fun PassengerMapScreen(
                             modifier = Modifier.padding(24.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
+                            val statusText = when (status) {
+                                "pending" -> "Finding a driver..."
+                                "accepted" -> "Driver is on the way!"
+                                "ongoing" -> "En route to destination"
+                                "completed" -> "Arrived at destination"
+                                "cancelled" -> "Ride Cancelled"
+                                else -> "Status: ${status.replaceFirstChar { it.uppercase() }}"
+                            }
+                            
                             Text(
-                                text = "Ride Status: ${status.replaceFirstChar { it.uppercase() }}",
-                                style = MaterialTheme.typography.titleMedium
+                                text = statusText,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
                             )
+                            
                             if (status == "pending") {
                                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 16.dp))
+                            }
+                            
+                            if (status == "accepted" || status == "ongoing") {
                                 Text(
-                                    "Finding a driver...",
+                                    "Estimated arrival: ${uiState.estimatedDuration}",
                                     modifier = Modifier.padding(top = 8.dp),
                                     style = MaterialTheme.typography.bodySmall
                                 )

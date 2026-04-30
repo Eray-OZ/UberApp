@@ -54,10 +54,22 @@ fun AppNavGraph(modifier: Modifier = Modifier) {
             )
         }
         composable(Screen.PassengerMap.route) {
-            PassengerMapScreen()
+            PassengerMapScreen(
+                onLogout = {
+                    navController.navigate(Screen.Auth.route) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                }
+            )
         }
         composable(Screen.DriverMap.route) {
-            DriverMapScreen()
+            DriverMapScreen(
+                onLogout = {
+                    navController.navigate(Screen.Auth.route) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                }
+            )
         }
     }
 }

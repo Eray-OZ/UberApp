@@ -34,13 +34,22 @@
   - Built `RoleSelectionScreen` and `RoleSelectionViewModel` to handle user role assignment.
   - Updated `AppNavGraph` to handle auto-routing based on auth state and role existence.
 
-### Phase 3: Map and Location Services (NOT STARTED)
-- Google Maps integration (Passenger & Driver views).
-- Location permission handling.
-- LocationService implementation for real-time tracking.
-- LocationRepository implementation.
+### Phase 3: Map and Location Services -- COMPLETED
+- **Status:** Implemented. Google Maps integrated, real-time location tracking for drivers working via foreground service and Realtime DB.
+- **What was done:**
+  - Implemented `LocationPermissionHelper` for multi-step permission handling (Fine + Background).
+  - Implemented `LocationService` (foreground service) using `FusedLocationProviderClient` with 4s GPS polling.
+  - Implemented `LocationRepository` with Firebase Realtime Database (Flow-based listeners).
+  - Integrated `GoogleMap` composable in `PassengerMapScreen` and `DriverMapScreen`.
+  - Added "Go Online/Offline" toggle for drivers with foreground service start/stop logic.
+  - Verified build with `./gradlew assembleDebug`.
 
 ### Phase 4: Routing / Pathfinder (NOT STARTED)
+- Google Directions API integration.
+- Destination search (Place Autocomplete).
+- Polyline rendering on the map.
+- Price/Time estimation.
+
 ### Phase 5: The Match (NOT STARTED)
 
 ---

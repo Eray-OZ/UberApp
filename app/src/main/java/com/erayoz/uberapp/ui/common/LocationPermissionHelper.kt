@@ -22,6 +22,7 @@ fun LocationPermissionHelper(
     onPermissionDenied: @Composable () -> Unit
 ) {
     val context = LocalContext.current
+    
     var fineLocationGranted by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(
@@ -31,8 +32,49 @@ fun LocationPermissionHelper(
         )
     }
 
-    var showRationale by remember { mutableStateOf(false) }
+    var notificationsGranted by remember {
+        mutableStateOf(
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) == PackageManager.PERMISSION_GRANTED
+            } else {
+                true
+            }
+        )
+    }
+
+    var backgroundLocationGranted by remember {
+        mutableStateOf(
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.ACCESS_BACKGROUND_LOCATION
+                ) == PackageManager.PERMISSION_GRANTED
+            } else {
+                true
+            }
+        )
+    }
+
     var showSettingsRedirect by remember { mutableStateOf(false) }
+
+    val backgroundLocationLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        backgroundLocationGranted = granted
+    }
+
+    val notificationLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        notificationsGranted = granted
+        // After notification permission, check for background location
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && !backgroundLocationGranted) {
+            backgroundLocationLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+        }
+    }
 
     val fineLocationLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
@@ -42,6 +84,12 @@ fun LocationPermissionHelper(
         
         if (granted) {
             fineLocationGranted = true
+            // Request notification permission on Android 13+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !notificationsGranted) {
+                notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && !backgroundLocationGranted) {
+                backgroundLocationLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+            }
         } else {
             showSettingsRedirect = true
         }
@@ -55,6 +103,12 @@ fun LocationPermissionHelper(
                     Manifest.permission.ACCESS_COARSE_LOCATION
                 )
             )
+        } else {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !notificationsGranted) {
+                notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && !backgroundLocationGranted) {
+                backgroundLocationLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+            }
         }
     }
 

@@ -62,6 +62,7 @@ fun AuthScreen(
                 singleLine = true
             )
 
+            @Suppress("DEPRECATION")
             OutlinedTextField(
                 value = uiState.password,
                 onValueChange = viewModel::onPasswordChanged,

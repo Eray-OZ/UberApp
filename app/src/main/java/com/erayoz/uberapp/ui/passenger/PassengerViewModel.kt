@@ -124,6 +124,33 @@ class PassengerViewModel @Inject constructor(
         }
     }
 
+    fun onMapClick(latLng: LatLng, context: android.content.Context) {
+        // Sadece bir sürüş aktif değilse tıklamaya izin ver
+        if (_uiState.value.rideStatus != null) return
+
+        _uiState.update { it.copy(destinationLocation = latLng) }
+        
+        viewModelScope.launch {
+            try {
+                val geocoder = android.location.Geocoder(context, java.util.Locale.getDefault())
+                val addresses = geocoder.getFromLocation(latLng.latitude, latLng.longitude, 1)
+                val address = addresses?.firstOrNull()?.getAddressLine(0) ?: "Pinned Location"
+                
+                _uiState.update { it.copy(
+                    searchQuery = address,
+                    destinationAddress = address
+                ) }
+                calculateRoute(latLng)
+            } catch (e: Exception) {
+                _uiState.update { it.copy(
+                    searchQuery = "Pinned Location",
+                    destinationAddress = "Pinned Location"
+                ) }
+                calculateRoute(latLng)
+            }
+        }
+    }
+
     private fun calculateRoute(destination: LatLng) {
         val origin = _uiState.value.currentLocation ?: return
         viewModelScope.launch {

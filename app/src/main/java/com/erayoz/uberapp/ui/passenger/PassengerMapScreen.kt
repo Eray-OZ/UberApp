@@ -119,7 +119,8 @@ fun PassengerMapScreen(
                     modifier = Modifier.fillMaxSize(),
                     cameraPositionState = cameraPositionState,
                     properties = MapProperties(isMyLocationEnabled = true),
-                    uiSettings = MapUiSettings(myLocationButtonEnabled = true)
+                    uiSettings = MapUiSettings(myLocationButtonEnabled = true),
+                    onMapClick = { viewModel.onMapClick(it, context) }
                 ) {
                     val personIcon = remember(context) { com.erayoz.uberapp.util.BitmapUtils.bitmapDescriptorFromVector(context, com.erayoz.uberapp.R.drawable.ic_person) }
                     val carIcon = remember(context) { com.erayoz.uberapp.util.BitmapUtils.bitmapDescriptorFromVector(context, com.erayoz.uberapp.R.drawable.ic_car) }

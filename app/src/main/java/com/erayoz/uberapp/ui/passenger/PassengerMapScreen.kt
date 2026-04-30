@@ -36,19 +36,26 @@ fun PassengerMapScreen(
 
     LocationPermissionHelper(
         onPermissionGranted = {
+            var hasCenteredOnLocation by remember { mutableStateOf(false) }
             val cameraPositionState = rememberCameraPositionState {
-                position = CameraPosition.fromLatLngZoom(LatLng(41.0082, 28.9784), 10f)
+                position = CameraPosition.fromLatLngZoom(
+                    uiState.currentLocation ?: LatLng(41.0082, 28.9784), 
+                    if (uiState.currentLocation != null) 15f else 10f
+                )
             }
 
-            LaunchedEffect(Unit) {
-                viewModel.fetchCurrentLocation()
+            LaunchedEffect(uiState.currentLocation) {
+                if (uiState.currentLocation != null && !hasCenteredOnLocation) {
+                    cameraPositionState.move(CameraUpdateFactory.newLatLngZoom(uiState.currentLocation!!, 15f))
+                    hasCenteredOnLocation = true
+                }
+                if (!hasCenteredOnLocation) {
+                    viewModel.fetchCurrentLocation()
+                }
             }
 
             // Camera update based on ride state
-            LaunchedEffect(uiState.rideStatus, uiState.currentLocation, uiState.driverLocation, uiState.destinationLocation) {
-                // Don't override user manual interaction
-                if (cameraPositionState.isMoving) return@LaunchedEffect
-
+            LaunchedEffect(uiState.rideId, uiState.rideStatus) {
                 val points = mutableListOf<LatLng>()
                 fun addIfValid(latLng: LatLng?) {
                     if (latLng != null && latLng.latitude != 0.0 && latLng.longitude != 0.0) {
@@ -61,7 +68,6 @@ fun PassengerMapScreen(
                         uiState.currentLocation?.let { 
                             if (it.latitude != 0.0) {
                                 cameraPositionState.animate(CameraUpdateFactory.newLatLngZoom(it, 15f))
-                                return@LaunchedEffect
                             }
                         }
                     }
@@ -73,18 +79,6 @@ fun PassengerMapScreen(
                         addIfValid(uiState.driverLocation)
                         addIfValid(uiState.destinationLocation)
                     }
-                    else -> {
-                        if (uiState.polylinePoints.isNotEmpty()) {
-                            uiState.polylinePoints.forEach { addIfValid(it) }
-                        } else {
-                            uiState.currentLocation?.let { 
-                                if (it.latitude != 0.0) {
-                                    cameraPositionState.animate(CameraUpdateFactory.newLatLngZoom(it, 15f))
-                                    return@LaunchedEffect
-                                }
-                            }
-                        }
-                    }
                 }
 
                 if (points.isNotEmpty()) {
@@ -92,23 +86,7 @@ fun PassengerMapScreen(
                     if (distinctPoints.size >= 2) {
                         val builder = LatLngBounds.Builder()
                         distinctPoints.forEach { builder.include(it) }
-                        val bounds = builder.build()
-                        
-                        // Check if points are too close (prevent weird zoom)
-                        val results = FloatArray(1)
-                        android.location.Location.distanceBetween(
-                            distinctPoints[0].latitude, distinctPoints[0].longitude,
-                            distinctPoints[1].latitude, distinctPoints[1].longitude,
-                            results
-                        )
-                        
-                        if (results[0] < 50f) { // Closer than 50 meters
-                            cameraPositionState.animate(CameraUpdateFactory.newLatLngZoom(distinctPoints[0], 15f))
-                        } else {
-                            cameraPositionState.animate(CameraUpdateFactory.newLatLngBounds(bounds, 150))
-                        }
-                    } else if (distinctPoints.size == 1) {
-                        cameraPositionState.animate(CameraUpdateFactory.newLatLngZoom(distinctPoints[0], 15f))
+                        cameraPositionState.animate(CameraUpdateFactory.newLatLngBounds(builder.build(), 150))
                     }
                 }
             }

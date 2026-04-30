@@ -93,7 +93,8 @@ class RideRepository @Inject constructor(
                     close(error)
                     return@addSnapshotListener
                 }
-                val ride = snapshot?.documents?.firstOrNull()?.toObject(RideRequest::class.java)
+                val doc = snapshot?.documents?.firstOrNull()
+                val ride = doc?.toObject(RideRequest::class.java)?.copy(id = doc.id)
                 trySend(ride)
             }
         awaitClose { listener.remove() }
@@ -108,7 +109,8 @@ class RideRepository @Inject constructor(
                     close(error)
                     return@addSnapshotListener
                 }
-                val ride = snapshot?.documents?.firstOrNull()?.toObject(RideRequest::class.java)
+                val doc = snapshot?.documents?.firstOrNull()
+                val ride = doc?.toObject(RideRequest::class.java)?.copy(id = doc.id)
                 trySend(ride)
             }
         awaitClose { listener.remove() }

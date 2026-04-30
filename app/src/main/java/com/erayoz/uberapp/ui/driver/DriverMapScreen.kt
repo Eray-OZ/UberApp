@@ -39,8 +39,19 @@ fun DriverMapScreen(
 
     LocationPermissionHelper(
         onPermissionGranted = {
+            var hasCenteredOnLocation by remember { mutableStateOf(false) }
             val cameraPositionState = rememberCameraPositionState {
-                position = CameraPosition.fromLatLngZoom(LatLng(41.0082, 28.9784), 10f)
+                position = CameraPosition.fromLatLngZoom(
+                    uiState.currentLocation ?: LatLng(41.0082, 28.9784), 
+                    if (uiState.currentLocation != null) 15f else 10f
+                )
+            }
+
+            LaunchedEffect(uiState.currentLocation) {
+                if (uiState.currentLocation != null && !hasCenteredOnLocation) {
+                    cameraPositionState.move(CameraUpdateFactory.newLatLngZoom(uiState.currentLocation!!, 15f))
+                    hasCenteredOnLocation = true
+                }
             }
 
             val pagerState = rememberPagerState(pageCount = { pendingRides.size })
